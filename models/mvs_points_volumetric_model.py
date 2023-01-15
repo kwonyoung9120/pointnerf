@@ -25,12 +25,12 @@ class MvsPointsVolumetricModel(NeuralPointsVolumetricModel):
         parser.add_argument(
             '--mode',
             type=int,
-            default=0,
+            default=2,
             help='0 for both mvs and pointnerf, 1 for only mvs, 2 for only pointnerf')
         parser.add_argument(
             '--add_shading_dist',
             type=int,
-            default=0,
+            default=2,
             help='0 for both mvs and pointnerf, 1 for only mvs, 2 for only pointnerf')
 
 
@@ -120,8 +120,11 @@ class MvsPointsVolumetricModel(NeuralPointsVolumetricModel):
 
     def forward(self):
         if self.opt.mode != 2:
+            import pdb; pdb.set_trace()
             points_xyz, points_embedding, points_colors, points_dirs, points_conf = self.net_mvs(self.input)
-            # print("volume_feature", volume_feature.shape)
+            print("volume_feature", volume_feature.shape)
+
+            import pdb; pdb.set_trace()
             self.neural_points.set_points(points_xyz, points_embedding, points_color=points_colors, points_dir=points_dirs, points_conf=points_conf, parameter=self.opt.feedforward==0) # if feedforward, no neural points optimization
         self.output = self.run_network_models()
         if "depths_h" in self.input:

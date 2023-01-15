@@ -592,9 +592,10 @@ class PointAggregator(torch.nn.Module):
                 color_in = torch.cat([color_in, pts], dim=-1)
 
             color_in = torch.cat([color_in, viewdirs], dim=-1)
+            import pdb;pdb.set_trace()
             color_output = self.raw2out_color(self.color_branch(color_in))
 
-            # print("color_output", torch.sum(color_output), color_output.grad)
+            print("color_output", torch.sum(color_output), color_output.grad)
 
             output = torch.cat([alpha, color_output], dim=-1)
 
@@ -632,6 +633,8 @@ class PointAggregator(torch.nn.Module):
                 color_in = torch.cat([color_in, pts], dim=-1)
 
             color_in = torch.cat([color_in, viewdirs], dim=-1)
+            
+
             color_output = self.raw2out_color(self.color_branch(color_in))
             # color_output = torch.sigmoid(color_output)
 

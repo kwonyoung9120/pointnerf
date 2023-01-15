@@ -149,7 +149,6 @@ class NeuralPointsVolumetricModel(BaseRenderingModel):
         add_property2dict(param, opt, [
             'num_pos_freqs', 'num_viewdir_freqs'
         ])
-
         return param
 
     def create_network_models(self, opt):
@@ -320,13 +319,15 @@ class NeuralPointsRayMarching(nn.Module):
             weight = alpha_blend_weight.view(alpha_blend_weight.shape[:3])
             avg_depth = (weight * ray_ts).sum(-1) / (weight.sum(-1) + 1e-6)
             output["coarse_depth"] = avg_depth
+           
         output["coarse_is_background"] = background_transmission
         output["ray_mask"] = ray_mask_tensor
+        
         if weight is not None:
+            
             output["weight"] = weight.detach()
             output["blend_weight"] = blend_weight.detach()
             output["conf_coefficient"] = conf_coefficient
-
 
         if self.opt.prob == 1 and output["coarse_point_opacity"].shape[1] > 0 :
             B, OR, _, _ = sample_pnt_mask.shape

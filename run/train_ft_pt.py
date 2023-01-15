@@ -69,7 +69,6 @@ def gen_points_filter_embeddings(dataset, visualizer, opt):
 
     imgs_lst, HDWD_lst, c2ws_lst, w2cs_lst, intrinsics_lst = [],[],[],[],[]
     with torch.no_grad():
-        import pdb; pdb.set_trace()
         for i in tqdm(range(0, len(dataset.view_id_list))):
             data = dataset.get_init_item(i)
             model.set_input(data)
@@ -103,17 +102,21 @@ def gen_points_filter_embeddings(dataset, visualizer, opt):
         else:
             cam_xyz_all = [cam_xyz_all[i].reshape(-1,3)[points_mask_all[i].reshape(-1),:] for i in range(len(cam_xyz_all))]
             xyz_world_all = [np.matmul(np.concatenate([cam_xyz_all[i], np.ones_like(cam_xyz_all[i][..., 0:1])], axis=-1), np.transpose(np.linalg.inv(extrinsics_all[i][0,...])))[:, :3] for i in range(len(cam_xyz_all))]
-            xyz_world_all, cam_xyz_all, confidence_filtered_all = filter_by_masks.range_mask_lst_np(xyz_world_all, cam_xyz_all, confidence_filtered_all, opt)
+            xyz_world_all, cam_xyz_all, confidence_filtered_all =filter_utils.range_mask_lst_np(xyz_world_all, cam_xyz_all, confidence_filtered_all, opt)
             del cam_xyz_all
         # for i in range(len(xyz_world_all)):
         #     visualizer.save_neural_points(i, torch.as_tensor(xyz_world_all[i], device="cuda", dtype=torch.float32), None, data, save_ref=opt.load_points==0)
         # exit()
         # xyz_world_all = xyz_world_all.cuda()
         # confidence_filtered_all = confidence_filtered_all.cuda()
-        points_vid = torch.cat([torch.ones_like(xyz_world_all[i][...,0:1]) * i for i in range(len(xyz_world_all))], dim=0)
-        xyz_world_all = torch.cat(xyz_world_all, dim=0) if gpu_filter else torch.as_tensor(
-            np.concatenate(xyz_world_all, axis=0), device="cuda", dtype=torch.float32)
-        confidence_filtered_all = torch.cat(confidence_filtered_all, dim=0) if gpu_filter else torch.as_tensor(np.concatenate(confidence_filtered_all, axis=0), device="cuda", dtype=torch.float32)
+
+      
+        xyz_world_all, color_world_all= dataset.load_init_depth_points(device="cuda", vox_res=opt.vox_res)
+        points_vid = torch.cat([torch.ones_like(xyz_world_all[i][...,0:1]) * i for i in range(len(xyz_world_all))], dim=0).view(-1,1)
+        #xyz_world_all = torch.cat(xyz_world_all, dim=0) if gpu_filter else torch.as_tensor(
+        #    np.concatenate(xyz_world_all, axis=0), device="cuda", dtype=torch.float32)
+        #confidence_filtered_all = torch.cat(confidence_filtered_all, dim=0) if gpu_filter else torch.as_tensor(np.concatenate(confidence_filtered_all, axis=0), device="cuda", dtype=torch.float32)
+        confidence_filtered_all = torch.ones_like(xyz_world_all[:,0])
         print("xyz_world_all", xyz_world_all.shape, points_vid.shape, confidence_filtered_all.shape)
         torch.cuda.empty_cache()
         # visualizer.save_neural_points(0, xyz_world_all, None, None, save_ref=False)
@@ -143,18 +146,22 @@ def gen_points_filter_embeddings(dataset, visualizer, opt):
             print("after voxelize:", xyz_world_all.shape, points_vid.shape)
             xyz_world_all = xyz_world_all.cuda()
 
+
+        
         xyz_world_all = [xyz_world_all[points_vid[:,0]==i, :] for i in range(len(HDWD_lst))]
         confidence_filtered_all = [confidence_filtered_all[points_vid[:,0]==i] for i in range(len(HDWD_lst))]
         cam_xyz_all = [(torch.cat([xyz_world_all[i], torch.ones_like(xyz_world_all[i][...,0:1])], dim=-1) @ extrinsics_all[i][0].t())[...,:3] for i in range(len(HDWD_lst))]
         points_embedding_all, points_color_all, points_dir_all, points_conf_all = [], [], [], []
         for i in tqdm(range(len(HDWD_lst))):
             if len(xyz_world_all[i]) > 0:
-                embedding, color, dir, conf = model.query_embedding(HDWD_lst[i], torch.as_tensor(cam_xyz_all[i][None, ...], device="cuda", dtype=torch.float32), torch.as_tensor(confidence_filtered_all[i][None, :, None], device="cuda", dtype=torch.float32) if len(confidence_filtered_all) > 0 else None, imgs_lst[i].cuda(), c2ws_lst[i], w2cs_lst[i], intrinsics_full_lst[i], 0, pointdir_w=True)
+                embedding, color, dir, conf = model.query_embedding(HDWD_lst[i], torch.as_tensor(cam_xyz_all[i][None, ...], device="cuda", dtype=torch.float32), torch.as_tensor(confidence_filtered_all[i][None, :, None], 
+                device="cuda", dtype=torch.float32) if len(confidence_filtered_all) > 0 else None, imgs_lst[i].cuda(), c2ws_lst[i], w2cs_lst[i], intrinsics_full_lst[i], 0, pointdir_w=True)
                 points_embedding_all.append(embedding)
                 points_color_all.append(color)
                 points_dir_all.append(dir)
                 points_conf_all.append(conf)
-
+        
+        
         xyz_world_all = torch.cat(xyz_world_all, dim=0)
         points_embedding_all = torch.cat(points_embedding_all, dim=1)
         points_color_all = torch.cat(points_color_all, dim=1) if points_color_all[0] is not None else None
@@ -602,6 +609,7 @@ def main():
     with torch.no_grad():
         print(opt.checkpoints_dir + opt.name + "/*_net_ray_marching.pth")
         if len([n for n in glob.glob(opt.checkpoints_dir + opt.name + "/*_net_ray_marching.pth") if os.path.isfile(n)]) > 0:
+
             if opt.bgmodel.endswith("plane"):
                 _, _, _, _, _, img_lst, c2ws_lst, w2cs_lst, intrinsics_all, HDWD_lst = gen_points_filter_embeddings(train_dataset, visualizer, opt)
 
@@ -648,7 +656,7 @@ def main():
             model.setup(opt)
             model.eval()
             if load_points in [1,3]:
-                points_xyz_all = train_dataset.load_init_points()
+                points_xyz_all, points_rgb_all = train_dataset.load_init_points()
             if load_points == 2:
                 points_xyz_all = train_dataset.load_init_depth_points(device="cuda", vox_res=100)
             if load_points == 3:
@@ -679,20 +687,27 @@ def main():
                     torch.logical_and(points_xyz_all[..., :3] >= ranges[None, :3], points_xyz_all[..., :3] <= ranges[None, 3:]),
                     dim=-1) > 0
                 points_xyz_all = points_xyz_all[mask]
+                points_rgb_all = points_rgb_all[mask]
 
 
             if opt.vox_res > 0:
                 points_xyz_all = [points_xyz_all] if not isinstance(points_xyz_all, list) else points_xyz_all
+                points_rgb_all = [points_rgb_all] if not isinstance(points_rgb_all, list) else points_rgb_all
                 points_xyz_holder = torch.zeros([0,3], dtype=points_xyz_all[0].dtype, device="cuda")
+                points_rgb_holder = torch.zeros([0,3], dtype=points_xyz_all[0].dtype, device="cuda")
                 for i in range(len(points_xyz_all)):
                     points_xyz = points_xyz_all[i]
+                    points_rgb = points_rgb_all[i]
                     vox_res = opt.vox_res // (1.5**i)
                     print("load points_xyz", points_xyz.shape)
                     _, sparse_grid_idx, sampled_pnt_idx = mvs_utils.construct_vox_points_closest(points_xyz.cuda() if len(points_xyz) < 80000000 else points_xyz[::(len(points_xyz) // 80000000 + 1), ...].cuda(), vox_res)
                     points_xyz = points_xyz[sampled_pnt_idx, :]
+                    points_rgb = points_rgb[sampled_pnt_idx, :]
                     print("after voxelize:", points_xyz.shape)
                     points_xyz_holder = torch.cat([points_xyz_holder, points_xyz], dim=0)
+                    points_rgb_holder = torch.cat([points_rgb_holder, points_rgb], dim=0)
                 points_xyz_all = points_xyz_holder
+                points_rgb_all = points_rgb_holder
 
 
 
@@ -703,6 +718,7 @@ def main():
                 else:
                     inds = torch.randperm(len(points_xyz_all))[:opt.resample_pnts, ...]
                 points_xyz_all = points_xyz_all[inds, ...]
+                points_rgb_all = points_rgb_all[inds, ...]
 
             campos, camdir = train_dataset.get_campos_ray()
             cam_ind = nearest_view(campos, camdir, points_xyz_all, train_dataset.id_list)
@@ -727,6 +743,7 @@ def main():
                 cam_xyz_all = (torch.cat([points_xyz_all[i], torch.ones_like(points_xyz_all[i][...,-1:])], dim=-1) @ w2c.transpose(0,1))[..., :3]
                 embedding, color, dir, conf = model.query_embedding(HDWD, cam_xyz_all[None,...], None, batch['images'].cuda(), c2w[None, None,...], w2c[None, None,...], intrinsic[:, None,...], 0, pointdir_w=True)
                 conf = conf * opt.default_conf if opt.default_conf > 0 and opt.default_conf < 1.0 else conf
+                color += points_rgb_all[i]
                 points_embedding_all = torch.cat([points_embedding_all, embedding], dim=1)
                 points_color_all = torch.cat([points_color_all, color], dim=1)
                 points_dir_all = torch.cat([points_dir_all, dir], dim=1)
@@ -760,7 +777,7 @@ def main():
             epoch_count = 1
             total_steps = 0
             del points_xyz_all, points_embedding_all, points_color_all, points_dir_all, points_conf_all
-    opt.resume_dir = os.path.join(opt.checkpoints_dir, opt.name)
+
     model.setup(opt, train_len=len(train_dataset))
     model.train()
     data_loader = create_data_loader(opt, dataset=train_dataset)
@@ -870,6 +887,7 @@ def main():
                         # else:
                         if len(add_xyz) > 0:
                             print("len(add_xyz)", len(add_xyz))
+                            model.clean_optimizer_scheduler()
                             model.grow_points(add_xyz, add_embedding, add_color, add_dir, add_conf)
                             length_added = len(add_xyz)
                             del add_xyz, add_embedding, add_color, add_dir, add_conf
@@ -886,31 +904,31 @@ def main():
                             model.save_networks(total_steps, other_states, back_gpu=False)
                             visualizer.print_details(
                                 "$$$$$$$$$$$$$$$$$$$$$$$$$$           add grow new points num: {}, all num: {}           $$$$$$$$$$$$$$$$".format(length_added, len(model.neural_points.xyz)))
-
-                            torch.cuda.synchronize()
-                            torch.cuda.empty_cache()
-
-                            # # hard reset
+                            # model.reset_optimizer(opt)
+                            # model.reset_scheduler(total_steps, opt)
                             # model.cleanup()
                             # pprint(vars(model))
-                            del model
-                            visualizer.reset()
-                            gc.collect()
-                            opt.is_train = 1
-                            opt.no_loss = 0
-                            opt.resume_iter = total_steps
-                            model = create_model(opt)
-                            model.setup(opt, train_len=len(train_dataset))
-                            model.train()
-                            if total_steps > 0:
-                                for scheduler in model.schedulers:
-                                    for i in range(total_steps):
-                                        scheduler.step()
-                        else:
-                            print("$$$$$$$$$$$$$$$$$$$$$$$$$$           no qualified points to grow           $$$$$$$$$$$$$$$$")
-                            # exit()
+                            # del model
+                            # visualizer.reset()
+                            # gc.collect()
+                            # torch.cuda.synchronize()
+                            # torch.cuda.empty_cache()
+                            # input("Press Enter to continue...")
+                            # opt.is_train = 1
+                            # opt.no_loss = 0
+                            # model = create_model(opt)
+                            #
+                            # model.setup(opt, train_len=len(train_dataset))
+                            # model.train()
+                            #
+                            # if total_steps > 0:
+                            #     for scheduler in model.schedulers:
+                            #         for i in range(total_steps):
+                            #             scheduler.step()
 
-                        # visualizer.print_details("$$$$$$$$$$$$$$$$$$$$$$$$$$         add grow new points num: {}, all num: {} $$$$$$$$$$$$$$$$".format(len(add_xyz), len(model.neural_points.xyz)))
+                            exit()
+
+                        visualizer.print_details("$$$$$$$$$$$$$$$$$$$$$$$$$$         add grow new points num: {}, all num: {} $$$$$$$$$$$$$$$$".format(len(add_xyz), len(model.neural_points.xyz)))
                         train_dataset.opt.random_sample = "random"
                     model.train()
                     model.opt.no_loss = 0

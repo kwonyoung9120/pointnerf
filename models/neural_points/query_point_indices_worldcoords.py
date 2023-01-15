@@ -915,5 +915,4 @@ if __name__ == "__main__":
         drv.init()
         dev1 = drv.Device(gpu)
         ctx1 = dev1.make_context()
-    try_build(ranges, vsize, vdim, vscale, max_o, P, kernel_size, SR, K, pixel_idx, obj,
-              radius_limit, depth_limit, near_depth, far_depth, shading_count, split=split, imgidx=imgidx, gpu=0, NN=NN)
+    try_build(ranges, vsize, vdim, vscale, max_o, P, kernel_size, SR, K, pixel_idx, obj, radius_limit, depth_limit, near_depth, far_depth, shading_count, split=split, imgidx=imgidx, gpu=0, NN=NN)

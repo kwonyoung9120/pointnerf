@@ -2,9 +2,9 @@
 
 nrCheckpoint="/root/code/pointnerf/checkpoints"
 nrDataRoot="/root/code/pointnerf/data_src"
-name='scene000'
+name='postech'
 
-resume_iter=latest #200000 # 20000 #latest
+resume_iter=0 #200000 # 20000 #latest
 data_root="${nrDataRoot}/postech/scans/"
 scan="scene0000_00"
 
@@ -13,7 +13,7 @@ feat_grad=1
 conf_grad=1
 dir_grad=1
 color_grad=1
-vox_res=320
+vox_res=200
 normview=0
 prune_thresh=0.1
 prune_iter=-10001
@@ -25,7 +25,7 @@ bgmodel="no" #"plane"
 depth_occ=1
 depth_vid="0"
 trgt_id=0
-manual_depth_view=1
+manual_depth_view=0
 init_view_num=3
 pre_d_est="${nrCheckpoint}/MVSNet/model_000014.ckpt"
 manual_std_depth=0.0
@@ -37,7 +37,7 @@ appr_feature_str0="imgfeat_0_0123 dir_0 point_conf"
 point_conf_mode="1" # 0 for only at features, 1 for multi at weight
 point_dir_mode="1" # 0 for only at features, 1 for color branch
 point_color_mode="1" # 0 for only at features, 1 for color branch
-default_conf=0.15 #1000
+default_conf=1 #1000
 
 agg_feat_xyz_mode="None"
 agg_alpha_xyz_mode="None"
@@ -118,8 +118,8 @@ checkpoints_dir="${nrCheckpoint}/postech/"
 resume_dir="${nrCheckpoint}/init/dtu_dgt_d012_img0123_conf_agg2_32_dirclr20"
 test_num_step=1
 
-save_iter_freq=10000
-save_point_freq=10000 #301840 #1
+save_iter_freq=20000
+save_point_freq=20000 #301840 #1
 maximum_step=200000 #300000 #800000
 
 niter=10000 #1000000
@@ -145,7 +145,7 @@ zero_epsilon=1e-3
 
 visual_items='coarse_raycolor gt_image '
 zero_one_loss_items='conf_coefficient' #regularize background to be either 0 or 1
-zero_one_loss_weights=" 0.0001 "
+zero_one_loss_weights="0.1"
 sparse_loss_weight=0
 
 color_loss_weights=" 1.0 0.0 0.0 "
@@ -161,7 +161,7 @@ split="train"
 
 cd run
 
-python3 train_ft.py \
+python3 train_ft_pt.py \
         --experiment $name \
         --scan $scan \
         --data_root $data_root \

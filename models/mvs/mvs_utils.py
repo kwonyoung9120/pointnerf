@@ -516,6 +516,23 @@ def construct_vox_points_xyz(xyz_val, vox_res, partition_xyz=None, space_min=Non
     xyz_centroid = scatter_mean(xyz_val, inv_idx, dim=0)
     return xyz_centroid
 
+def construct_vox_points_xyzcolor(xyz_val, color_val, vox_res, partition_xyz=None, space_min=None, space_max=None):
+    # xyz, N, 3
+    xyz = xyz_val if partition_xyz is None else partition_xyz
+    if space_min is None:
+        xyz_min, xyz_max = torch.min(xyz, dim=-2)[0], torch.max(xyz, dim=-2)[0]
+        space_edge = torch.max(xyz_max - xyz_min) * 1.05
+        xyz_mid = (xyz_max + xyz_min) / 2
+        space_min = xyz_mid - space_edge / 2
+    else:
+        space_edge = space_max - space_min
+    construct_vox_sz = space_edge / vox_res
+    xyz_shift = xyz - space_min[None, ...]
+    sparse_grid_idx, inv_idx = torch.unique(torch.floor(xyz_shift / construct_vox_sz[None, ...]).to(torch.int32), dim=0, return_inverse=True)
+    xyz_centroid = scatter_mean(xyz_val, inv_idx, dim=0)
+    color_centroid = scatter_mean(color_val, inv_idx, dim=0)
+    return xyz_centroid, color_centroid
+
 
 def construct_vox_points_ind(xyz_val, vox_res, partition_xyz=None, space_min=None, space_max=None):
     # xyz, N, 3

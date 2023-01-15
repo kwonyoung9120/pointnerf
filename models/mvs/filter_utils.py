@@ -223,7 +223,9 @@ def filter_by_masks_gpu(cam_xyz_all, intrinsics_all, extrinsics_all, confidence_
     xyz_cam_lst=[]
     xyz_world_lst=[]
     confidence_filtered_lst = []
+    import pdb;pdb.set_trace()
     B, N, C, H, W, _ = cam_xyz_all[0].shape
+    
     cam_xyz_all = [cam_xyz.view(C,H,W,3) for cam_xyz in cam_xyz_all]
     for cam_view in tqdm(range(len(cam_xyz_all))) if vis else range(len(cam_xyz_all)):
         near_fars = near_fars_all[cam_view] if near_fars_all is not None else None

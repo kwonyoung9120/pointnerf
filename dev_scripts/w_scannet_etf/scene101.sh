@@ -1,7 +1,7 @@
 #!/bin/bash
 
-nrCheckpoint="../checkpoints"
-nrDataRoot="../data_src"
+nrCheckpoint="/root/code/pointnerf/checkpoints"
+nrDataRoot="/root/code/pointnerf/data_src"
 name='scene101'
 
 resume_iter=200000 # 20000 #latest

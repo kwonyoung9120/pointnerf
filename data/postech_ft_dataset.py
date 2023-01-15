@@ -300,16 +300,19 @@ class PostechFtDataset(BaseDataset):
             self.test_id_list = self.all_id_list[::100]
             self.train_id_list = [self.all_id_list[i] for i in range(len(self.all_id_list)) if (((i % 100) > 19) and ((i % 100) < 81 or (i//100+1)*100>=len(self.all_id_list)))]
         else:  # nsvf configuration
+            #step=5
+            #self.train_id_list = self.all_id_list[::step]
+            #self.test_id_list = [self.all_id_list[i] for i in range(len(self.all_id_list)) if (i % step) !=0] if self.opt.test_num_step != 1 else self.all_id_list
             step=5
             self.train_id_list = self.all_id_list[::step]
-            self.test_id_list = [self.all_id_list[i] for i in range(len(self.all_id_list)) if (i % step) !=0] if self.opt.test_num_step != 1 else self.all_id_list
+            self.test_id_list = [self.all_id_list[i] for i in range(len(self.all_id_list)) if (i % step) !=0]
 
         print("all_id_list",len(self.all_id_list))
         print("test_id_list",len(self.test_id_list), self.test_id_list)
         print("train_id_list",len(self.train_id_list))
         self.train_id_list = self.remove_blurry(self.train_id_list)
         self.id_list = self.train_id_list if self.split=="train" else self.test_id_list
-        self.view_id_list=[]
+        self.view_id_list=self.id_list
 
 
     def filter_valid_id(self, id_list):
@@ -400,14 +403,25 @@ class PostechFtDataset(BaseDataset):
         plydata = PlyData.read(points_path)
         # plydata (PlyProperty('x', 'double'), PlyProperty('y', 'double'), PlyProperty('z', 'double'), PlyProperty('nx', 'double'), PlyProperty('ny', 'double'), PlyProperty('nz', 'double'), PlyProperty('red', 'uchar'), PlyProperty('green', 'uchar'), PlyProperty('blue', 'uchar'))
         x,y,z=torch.as_tensor(plydata.elements[0].data["x"].astype(np.float32), device="cuda", dtype=torch.float32), torch.as_tensor(plydata.elements[0].data["y"].astype(np.float32), device="cuda", dtype=torch.float32), torch.as_tensor(plydata.elements[0].data["z"].astype(np.float32), device="cuda", dtype=torch.float32)
+        r,g,b=torch.as_tensor(plydata.elements[0].data["red"].astype(np.float32), device="cuda", dtype=torch.float32), torch.as_tensor(plydata.elements[0].data["green"].astype(np.float32), device="cuda", dtype=torch.float32), torch.as_tensor(plydata.elements[0].data["blue"].astype(np.float32), device="cuda", dtype=torch.float32)
+         
         points_xyz = torch.stack([x,y,z], dim=-1)
+        points_rgb = torch.stack([r,g,b], dim=-1)
+
+        mean = torch.as_tensor([0.485, 0.456, 0.406], device="cuda",dtype=torch.float32)
+        std = torch.as_tensor([0.229, 0.224, 0.225], device="cuda", dtype=torch.float32)
+        points_rgb = (points_rgb - mean) / std
+
         if self.opt.ranges[0] > -99.0:
             ranges = torch.as_tensor(self.opt.ranges, device=points_xyz.device, dtype=torch.float32)
             mask = torch.prod(torch.logical_and(points_xyz >= ranges[None, :3], points_xyz <= ranges[None, 3:]), dim=-1) > 0
             points_xyz = points_xyz[mask]
+            points_rgb = points_rgb[mask]
         # np.savetxt(os.path.join(self.data_dir, self.scan, "exported/pcd.txt"), points_xyz.cpu().numpy(), delimiter=";")
 
-        return points_xyz
+        
+
+        return points_xyz, points_rgb
 
     def read_depth(self, filepath):
         depth_im = cv2.imread(filepath, -1).astype(np.float32)
@@ -441,8 +455,7 @@ class PostechFtDataset(BaseDataset):
             world_xyz = (cam_xyz.view(-1,4) @ c2w.t())[...,:3]
             # print("cam_xyz", torch.min(cam_xyz, dim=-2)[0], torch.max(cam_xyz, dim=-2)[0])
             # print("world_xyz", world_xyz.shape) #, torch.min(world_xyz.view(-1,3), dim=-2)[0], torch.max(world_xyz.view(-1,3), dim=-2)[0])
-            if vox_res > 0:
-                world_xyz = mvs_utils.construct_vox_points_xyz(world_xyz, vox_res)
+            
                 # print("world_xyz", world_xyz.shape)
             world_xyz_all = torch.cat([world_xyz_all, world_xyz], dim=0)
         if self.opt.ranges[0] > -99.0:
@@ -451,8 +464,17 @@ class PostechFtDataset(BaseDataset):
             world_xyz_all = world_xyz_all[mask]
         '''
         import open3d as o3d
-        world_xyz_all = o3d.io.read_point_cloud("registration.ply")
-        return world_xyz_all
+        o3d_pt = o3d.io.read_point_cloud(os.path.join(self.data_dir, self.scan, "scene0000_00_vh_clean.ply"))
+        world_xyz_all = torch.tensor(o3d_pt.points, device=device)
+        world_color_all = torch.tensor(o3d_pt.colors, device=device)
+        if vox_res > 0:
+            world_xyz_all, world_color_all = mvs_utils.construct_vox_points_xyzcolor(world_xyz_all, world_color_all, vox_res)
+        if self.opt.ranges[0] > -99.0:
+            ranges = torch.as_tensor(self.opt.ranges, device=world_xyz_all.device, dtype=torch.float32)
+            mask = torch.prod(torch.logical_and(world_xyz_all >= ranges[None, :3], world_xyz_all <= ranges[None, 3:]), dim=-1) > 0
+            world_xyz_all = world_xyz_all[mask]
+            world_color_all = world_color_all[mask]
+        return world_xyz_all, world_color_all
 
 
     def __len__(self):
@@ -481,12 +503,14 @@ class PostechFtDataset(BaseDataset):
         sample = {}
         init_view_num = self.opt.init_view_num
         view_ids = self.view_id_list[idx]
-        if self.split == 'train':
-            view_ids = view_ids[:init_view_num]
+        #import pdb; pdb.set_trace()
+        #if self.split == 'train':
+        #    view_ids = view_ids[:init_view_num]
 
         affine_mat, affine_mat_inv = [], []
         mvs_images, imgs, depths_h, alphas = [], [], [], []
         proj_mats, intrinsics, w2cs, c2ws, near_fars = [], [], [], [], []  # record proj mats between views
+        import pdb; pdb.set_trace()
         for i in view_ids:
             vid = self.view_id_dict[i]
             # mvs_images += [self.normalize_rgb(self.blackimgs[vid])]

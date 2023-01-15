@@ -631,11 +631,11 @@ class BaseRenderingModel(BaseModel):
             if name not in self.output:
                 print(fmt.YELLOW + "No required zero_one loss item: " + name +
                       fmt.END)
-                # setattr(self, "loss_" + name, torch.zeros([1], device="cuda", dtype=torch.float32))
+                #setattr(self, "loss_" + name, torch.zeros([1], device="cuda", dtype=torch.float32))
             else:
                 val = torch.clamp(self.output[name], self.opt.zero_epsilon,
                                   1 - self.opt.zero_epsilon)
-                # print("self.output[name]",torch.min(self.output[name]), torch.max(self.output[name]))
+                #print("self.output[name]",torch.min(self.output[name]), torch.max(self.output[name]))
                 loss = torch.mean(torch.log(val) + torch.log(1 - val))
                 self.loss_total += loss * opt.zero_one_loss_weights[i]
                 setattr(self, "loss_" + name, loss)
@@ -645,7 +645,7 @@ class BaseRenderingModel(BaseModel):
             if name not in self.output:
                 print(fmt.YELLOW + "No required l2_size_loss_item : " + name + fmt.END)
             loss = self.l2loss(self.output[name], torch.zeros_like(self.output[name]))
-            # print("self.output[name]", self.output[name].shape, loss.shape)
+            #print("self.output[name]", self.output[name].shape, loss.shape)
             self.loss_total += loss * opt.l2_size_loss_weights[i]
             setattr(self, "loss_" + name, loss)
 
@@ -655,13 +655,12 @@ class BaseRenderingModel(BaseModel):
                 print(fmt.YELLOW + "No required sparse_loss_weight weight or conf_coefficient : " + fmt.END)
 
             loss = torch.sum(self.output["weight"] * torch.abs(1 - torch.exp(-2 * self.output["conf_coefficient"]))) / (torch.sum(self.output["weight"]) + 1e-6)
-            # print("self.output[name]", self.output[name].shape, loss.shape)
             self.output.pop('weight')
             self.output.pop('conf_coefficient')
             self.loss_total += loss * opt.sparse_loss_weight
             setattr(self, "loss_sparse", loss)
 
-        # self.loss_total = Variable(self.loss_total, requires_grad=True)
+        self.loss_total = Variable(self.loss_total, requires_grad=True)
 
     def backward(self):
         self.optimizer.zero_grad()

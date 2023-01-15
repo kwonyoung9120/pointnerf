@@ -483,6 +483,7 @@ class ScannetFtDataset(BaseDataset):
         affine_mat, affine_mat_inv = [], []
         mvs_images, imgs, depths_h, alphas = [], [], [], []
         proj_mats, intrinsics, w2cs, c2ws, near_fars = [], [], [], [], []  # record proj mats between views
+        import pdb; pdb.set_trace()
         for i in view_ids:
             vid = self.view_id_dict[i]
             # mvs_images += [self.normalize_rgb(self.blackimgs[vid])]

@@ -12,6 +12,7 @@ from data import create_data_loader, create_dataset
 from models import create_model
 from models.mvs.mvs_points_model import MvsPointsModel
 from models.mvs import mvs_utils, filter_utils
+
 from pprint import pprint
 from utils.visualizer import Visualizer
 from utils import format as fmt
@@ -69,7 +70,6 @@ def gen_points_filter_embeddings(dataset, visualizer, opt):
 
     imgs_lst, HDWD_lst, c2ws_lst, w2cs_lst, intrinsics_lst = [],[],[],[],[]
     with torch.no_grad():
-        import pdb; pdb.set_trace()
         for i in tqdm(range(0, len(dataset.view_id_list))):
             data = dataset.get_init_item(i)
             model.set_input(data)
@@ -925,6 +925,7 @@ def main():
 
             total_steps += 1
             model.set_input(data)
+
             if opt.bgmodel.endswith("plane"):
                 if len(bg_ray_train_lst) > 0:
                     bg_ray_all = bg_ray_train_lst[data["id"]]

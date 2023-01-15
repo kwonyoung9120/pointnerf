@@ -114,6 +114,8 @@ __pycache__
 .vscode*
 .DS_Store
 .idea/
+.checkpoints
+.data_src
 
 #viewer
 viewer/setting.ini

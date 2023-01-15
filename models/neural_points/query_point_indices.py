@@ -940,3 +940,4 @@ if __name__ == "__main__":
         ctx1 = dev1.make_context()
     try_build(point_file, point_dir, ranges, vsize, vdim, vscale, max_o, P, kernel_size, SR, K, pixel_idx, obj,
               radius_limit, depth_limit, split=split, imgidx=imgidx, gpu=0)
+        ctx1.pop()
